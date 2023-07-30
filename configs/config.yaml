@@ -1,0 +1,5 @@
+defaults:
+  - preprocess: default
+  - audio: fbank
+  - model: default
+  - trainer: default

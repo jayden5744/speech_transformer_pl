@@ -1,8 +1,7 @@
 # data
-dataset: 'kspon'
 dataset_path: ''
-transcripts_path: '../../../data/transcripts.txt'
-output_unit: 'character'
+output_unit: 'character' # [character, subword, grapheme]
+transcripts_path: './Vocabulary/kspon_${trainer.output_unit}/transcripts.txt'
 
 # trainer
 num_epochs: 40
