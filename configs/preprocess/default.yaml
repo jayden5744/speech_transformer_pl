@@ -1,5 +1,5 @@
 dataset_path: "./datasets/kspon/train"
-output_unit: "character"   # [character, subword, grapheme]
+output_unit: "subword"   # [character, subword, grapheme]
 save_path: "./Vocabulary/kspon_${preprocess.output_unit}"
 preprocess_mode: "phonetic" # [spelling, phonetic]
 vocab_size: 5000

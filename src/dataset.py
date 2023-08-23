@@ -109,3 +109,58 @@ class SpectrogramDataset(Dataset, SpectrogramParser):
 
     def count(self):
         return len(self.audio_paths)
+
+
+def splt_dataset(config:DictConfig, transcript_path: str, vocab):
+    """
+    split into training set and validation set.
+
+    Args:
+        opt (ArgumentParser): set of options
+        transcripts_path (str): path of  transcripts
+
+    Returns: train_batch_num, train_dataset_list, valid_dataset
+        - **train_time_step** (int): number of time step for training
+        - **trainset_list** (list): list of training dataset
+        - **validset** (data_loader.MelSpectrogramDataset): validation dataset
+    """
+    logger.info("Split datasset start!!")
+
+    audio_paths, transcripts = load_dataset(transcript_path)
+
+    train_num = int(len(audio_paths) * 0.9)
+
+    train_audio_paths = audio_paths[:train_num + 1]
+    train_transcripts = transcripts[:train_num + 1]
+
+    valid_audio_paths = audio_paths[train_num + 1:]
+    valid_transcripts = transcripts[train_num + 1:]
+
+    
+    tmp = list(zip(train_audio_paths, train_transcripts))
+    random.shuffle(tmp)
+    train_audio_paths, train_transcripts = zip(*tmp)
+
+    train_set = SpectrogramDataset(
+        audio_paths=train_audio_paths,
+        transcripts=train_transcripts,
+        sos_id=vocab.sos_id, 
+        eos_id=vocab.eos_id,
+        config=config,
+        spec_augment=config.audio.spec_augment,
+        dataset_path=config.train.dataset_path,
+        audio_extension=config.audio.audio_extension,
+    )
+
+    valid_set = SpectrogramDataset(
+        audio_paths=valid_audio_paths,
+        transcripts=valid_transcripts,
+        sos_id=vocab.sos_id, 
+        eos_id=vocab.eos_id,
+        config=config,
+        spec_augment=config.audio.spec_augment,
+        dataset_path=config.train.dataset_path,
+        audio_extension=config.audio.audio_extension,
+    )
+    logger.info("split dataset Complete!!")
+    return train_set, valid_set

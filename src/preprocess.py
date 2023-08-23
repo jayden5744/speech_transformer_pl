@@ -1,12 +1,13 @@
 import os
+import os.path as osp
 import re
+import shutil
 from typing import List, Tuple
+import unicodedata
 
-from src.utils import logger
+import sentencepiece as spm
 
-from .character import generate_character_labels, generate_character_script
-from .grapheme import generate_grapheme_labels, generate_grapheme_script
-from .subword import sentence_to_subwords, train_sentencepiece
+from .utils import logger
 
 
 def bracket_filter(sentence: str, mode: str = "phonetic") -> str:
@@ -129,12 +130,68 @@ def preprocess(
 
                     audio_paths.append(
                         os.path.join(folder, sub_folder, file[:-4] + ".pcm")
-                    )  # Todo : file 부분 확장자 제외하는 지 확인 필요
+                    )  
                     transcripts.append(processed_sentences)
 
                 else:
                     continue
     return audio_paths, transcripts
+
+
+def exist_file(path: str) -> bool:
+    if osp.exists(path):
+        return True
+    return False
+
+
+def train_sentencepiece(
+    transcripts: List[str], 
+    save_path: str, 
+    model_type: str,
+    vocab_size: int = 5000,
+) -> None:
+    logger.info("generate_sentencepiece")
+    model_prefix = "kspon_sentencepiece"
+
+    os.makedirs(save_path, exist_ok=True)
+
+    with open("sentencepiece_input.txt", "w", encoding="utf-8") as f:
+        for transcript in transcripts:
+            f.write(f"{transcript}\n")
+
+    model_path = osp.join(save_path, model_prefix + ".model")
+    vocab_path = osp.join(save_path, model_prefix + ".vocab")
+    if not exist_file(model_path) and not exist_file(vocab_path):
+        spm.SentencePieceTrainer.Train(
+            f"--input=sentencepiece_input.txt "
+            f"--model_prefix={model_prefix} "
+            f"--vocab_size={vocab_size} "
+            f"--model_type={model_type} "
+            f"--pad_id=0 "
+            f"--bos_id=1 "
+            f"--eos_id=2 "
+            f"--unk_id=3 "
+        )
+        shutil.move(model_prefix + ".model", model_path)
+        shutil.move(model_prefix + ".vocab", vocab_path)
+
+
+def create_transcripts(
+    audio_paths: List[str],
+    transcripts: List[str],
+    save_path:str 
+) -> None:
+    sp = spm.SentencePieceProcessor()
+    model_file = osp.join(save_path, "kspon_sentencepiece.model")
+    sp.load(model_file)
+
+    with open(f"{save_path}/transcripts.txt", "w") as f:
+        for audio_path, transcript in zip(audio_paths, transcripts):
+            subword_transcript = " ".join(sp.EncodeAsPieces(transcript))
+            subword_id_transcript = " ".join(
+                [str(item) for item in sp.EncodeAsIds(transcript)]
+            )
+            f.write(f"{audio_path}\t{subword_transcript}\t{subword_id_transcript}\n")
 
 
 def prepross_kspon(
@@ -156,18 +213,20 @@ def prepross_kspon(
 
     audio_paths, transcripts = preprocess(dataset_path, preprocess_mode)
 
-    # output unit 별로 처리
+    logger.info(f"Create {output_unit} started...")
+
     if output_unit == "character":
-        generate_character_labels(transcripts, save_path)
-        generate_character_script(audio_paths, transcripts, save_path)
+        train_sentencepiece(transcripts, save_path, "char", vocab_size)
 
     elif output_unit == "subword":
-        train_sentencepiece(transcripts, save_path, vocab_size)
-        sentence_to_subwords(audio_paths, transcripts, save_path)
+        train_sentencepiece(transcripts, save_path, "bpe", vocab_size)
 
     elif output_unit == "grapheme":
-        generate_grapheme_labels(transcripts, save_path)
-        generate_grapheme_script(audio_paths, transcripts, save_path)
+        transcripts = [" ".join(unicodedata.normalize("NFKD", transcript).replace(" ", "|")).upper() for transcript in transcripts]
+        train_sentencepiece(transcripts, save_path, "char", vocab_size)
 
     else:
-        raise ValueError(f"Unsupported preprocess method : {output_unit}")
+        raise ValueError("Unsupported preprocess method : {0}".format(output_unit))
+
+    logger.info(f"Sentece to {output_unit}")
+    create_transcripts(audio_paths, transcripts, save_path)

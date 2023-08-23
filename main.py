@@ -1,6 +1,20 @@
 import hydra
 from omegaconf import DictConfig
 
+from src.preprocess import prepross_kspon
+
+
+
+@hydra.main(version_base="1.3.2", config_path="configs", config_name="preprocess")
+def preprocess(cfg: DictConfig) -> None:
+    prepross_kspon(
+        dataset_path=cfg.preprocess.dataset_path,
+        output_unit=cfg.preprocess.output_unit,
+        save_path=cfg.preprocess.save_path,
+        preprocess_mode=cfg.preprocess.preprocess_mode,
+        vocab_size=cfg.preprocess.vocab_size
+    )
+
 
 @hydra.main(version_base="1.3.2", config_path="configs", config_name="pretrain")
 def train(cfg: DictConfig) -> None:
@@ -8,4 +22,4 @@ def train(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    train()
+    preprocess()
