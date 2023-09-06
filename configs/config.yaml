@@ -1,0 +1,5 @@
+defaults:
+  - data: default
+  - audio: mel_spectrogram
+  - model: default
+  - trainer: default

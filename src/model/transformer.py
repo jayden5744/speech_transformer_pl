@@ -1,20 +1,21 @@
 import math
-import numpy as np
 from typing import Optional, Tuple
+
+import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.init as init
 import torch.nn.functional as F
+import torch.nn.init as init
 from torch import Tensor
 
 from .convolution import DeepSpeech2Extractor, VGGExtractor
 
 
 def get_attn_pad_mask(inputs, input_lengths, expand_length):
-    """ mask position is set to 1 """
+    """mask position is set to 1"""
 
     def get_transformer_non_pad_mask(inputs: Tensor, input_lengths: Tensor) -> Tensor:
-        """ Padding position is set to 0, either use input_lengths or pad_id """
+        """Padding position is set to 0, either use input_lengths or pad_id"""
         batch_size = inputs.size(0)
 
         if len(inputs.size()) == 2:
@@ -25,7 +26,7 @@ def get_attn_pad_mask(inputs, input_lengths, expand_length):
             raise ValueError(f"Unsupported input shape {inputs.size()}")
 
         for i in range(batch_size):
-            non_pad_mask[i, input_lengths[i]:] = 0
+            non_pad_mask[i, input_lengths[i] :] = 0
 
         return non_pad_mask
 
@@ -51,6 +52,7 @@ class Linear(nn.Module):
     Wrapper class of torch.nn.Linear
     Weight initialize by xavier initialization and bias initialize to zeros.
     """
+
     def __init__(self, in_features: int, out_features: int, bias: bool = True) -> None:
         super(Linear, self).__init__()
         self.linear = nn.Linear(in_features, out_features, bias=bias)
@@ -61,13 +63,14 @@ class Linear(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self.linear(x)
 
-    
+
 class Embedding(nn.Module):
     """
     Embedding layer. Similarly to other sequence transduction models, transformer use learned embeddings
     to convert the input tokens and output tokens to vectors of dimension d_model.
     In the embedding layers, transformer multiply those weights by sqrt(d_model)
     """
+
     def __init__(self, num_embeddings: int, pad_id: int, d_model: int = 512) -> None:
         super(Embedding, self).__init__()
         self.sqrt_dim = math.sqrt(d_model)
@@ -87,15 +90,18 @@ class PositionalEncoding(nn.Module):
         PE_(pos, 2i)    =  sin(pos / power(10000, 2i / d_model))
         PE_(pos, 2i+1)  =  cos(pos / power(10000, 2i / d_model))
     """
+
     def __init__(self, d_model: int = 512, max_len: int = 5000) -> None:
         super(PositionalEncoding, self).__init__()
         pe = torch.zeros(max_len, d_model, requires_grad=False)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / d_model))
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / d_model)
+        )
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)
-        self.register_buffer('pe', pe)
+        self.register_buffer("pe", pe)
 
     def forward(self, length: int) -> Tensor:
         return self.pe[:, :length]
@@ -121,6 +127,7 @@ class ScaledDotProductAttention(nn.Module):
         - **context**: tensor containing the context vector from attention mechanism.
         - **attn**: tensor containing the attention (alignment) from the encoder outputs.
     """
+
     def __init__(self, dim: int, scale: bool = True) -> None:
         super(ScaledDotProductAttention, self).__init__()
         if scale:
@@ -129,11 +136,11 @@ class ScaledDotProductAttention(nn.Module):
             self.sqrt_dim = 1
 
     def forward(
-            self,
-            query: Tensor,
-            key: Tensor,
-            value: Tensor,
-            mask: Optional[Tensor] = None,
+        self,
+        query: Tensor,
+        key: Tensor,
+        value: Tensor,
+        mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor]:
         score = torch.bmm(query, key.transpose(1, 2)) / self.sqrt_dim
 
@@ -171,6 +178,7 @@ class MultiHeadAttention(nn.Module):
         - **output** (batch, output_len, dimensions): tensor containing the attended output features.
         - **attn** (batch * num_heads, v_len): tensor containing the attention (alignment) from the encoder outputs.
     """
+
     def __init__(self, dim: int = 512, num_heads: int = 8) -> None:
         super(MultiHeadAttention, self).__init__()
 
@@ -184,11 +192,11 @@ class MultiHeadAttention(nn.Module):
         self.scaled_dot_attn = ScaledDotProductAttention(self.d_head, scale=True)
 
     def forward(
-            self,
-            query: Tensor,
-            key: Tensor,
-            value: Tensor,
-            mask: Optional[Tensor] = None,
+        self,
+        query: Tensor,
+        key: Tensor,
+        value: Tensor,
+        mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor]:
         batch_size = value.size(0)
 
@@ -196,9 +204,21 @@ class MultiHeadAttention(nn.Module):
         key = self.key_proj(key).view(batch_size, -1, self.num_heads, self.d_head)
         value = self.value_proj(value).view(batch_size, -1, self.num_heads, self.d_head)
 
-        query = query.permute(2, 0, 1, 3).contiguous().view(batch_size * self.num_heads, -1, self.d_head)
-        key = key.permute(2, 0, 1, 3).contiguous().view(batch_size * self.num_heads, -1, self.d_head)
-        value = value.permute(2, 0, 1, 3).contiguous().view(batch_size * self.num_heads, -1, self.d_head)
+        query = (
+            query.permute(2, 0, 1, 3)
+            .contiguous()
+            .view(batch_size * self.num_heads, -1, self.d_head)
+        )
+        key = (
+            key.permute(2, 0, 1, 3)
+            .contiguous()
+            .view(batch_size * self.num_heads, -1, self.d_head)
+        )
+        value = (
+            value.permute(2, 0, 1, 3)
+            .contiguous()
+            .view(batch_size * self.num_heads, -1, self.d_head)
+        )
 
         if mask is not None:
             mask = mask.repeat(self.num_heads, 1, 1)
@@ -206,7 +226,11 @@ class MultiHeadAttention(nn.Module):
         context, attn = self.scaled_dot_attn(query, key, value, mask)
 
         context = context.view(self.num_heads, batch_size, -1, self.d_head)
-        context = context.permute(1, 2, 0, 3).contiguous().view(batch_size, -1, self.num_heads * self.d_head)
+        context = (
+            context.permute(1, 2, 0, 3)
+            .contiguous()
+            .view(batch_size, -1, self.num_heads * self.d_head)
+        )
 
         return context, attn
 
@@ -218,7 +242,10 @@ class PositionwiseFeedForward(nn.Module):
     This consists of two linear transformations with a ReLU activation in between.
     Another way of describing this is as two convolutions with kernel size 1.
     """
-    def __init__(self, d_model: int = 512, d_ff: int = 2048, dropout_p: float = 0.3) -> None:
+
+    def __init__(
+        self, d_model: int = 512, d_ff: int = 2048, dropout_p: float = 0.3
+    ) -> None:
         super(PositionwiseFeedForward, self).__init__()
         self.feed_forward = nn.Sequential(
             Linear(d_model, d_ff),
@@ -245,11 +272,11 @@ class EncoderLayer(nn.Module):
     """
 
     def __init__(
-            self,
-            d_model: int = 512,             # dimension of model
-            num_heads: int = 8,             # number of attention heads
-            d_ff: int = 2048,               # dimension of feed forward network
-            dropout_p: float = 0.3,         # probability of dropout
+        self,
+        d_model: int = 512,  # dimension of model
+        num_heads: int = 8,  # number of attention heads
+        d_ff: int = 2048,  # dimension of feed forward network
+        dropout_p: float = 0.3,  # probability of dropout
     ) -> None:
         super(EncoderLayer, self).__init__()
         self.attention_prenorm = nn.LayerNorm(d_model)
@@ -257,7 +284,9 @@ class EncoderLayer(nn.Module):
         self.self_attention = MultiHeadAttention(d_model, num_heads)
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout_p)
 
-    def forward(self, inputs: Tensor, self_attn_mask: Tensor = None) -> Tuple[Tensor, Tensor]:
+    def forward(
+        self, inputs: Tensor, self_attn_mask: Tensor = None
+    ) -> Tuple[Tensor, Tensor]:
         residual = inputs
         inputs = self.attention_prenorm(inputs)
         outputs, attn = self.self_attention(inputs, inputs, inputs, self_attn_mask)
@@ -284,11 +313,11 @@ class DecoderLayer(nn.Module):
     """
 
     def __init__(
-            self,
-            d_model: int = 512,             # dimension of model
-            num_heads: int = 8,             # number of attention heads
-            d_ff: int = 2048,               # dimension of feed forward network
-            dropout_p: float = 0.3,         # probability of dropout
+        self,
+        d_model: int = 512,  # dimension of model
+        num_heads: int = 8,  # number of attention heads
+        d_ff: int = 2048,  # dimension of feed forward network
+        dropout_p: float = 0.3,  # probability of dropout
     ) -> None:
         super(DecoderLayer, self).__init__()
         self.self_attention_prenorm = nn.LayerNorm(d_model)
@@ -299,11 +328,11 @@ class DecoderLayer(nn.Module):
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout_p)
 
     def forward(
-            self,
-            inputs: Tensor,
-            encoder_outputs: Tensor,
-            self_attn_mask: Optional[Tensor] = None,
-            encoder_outputs_mask: Optional[Tensor] = None
+        self,
+        inputs: Tensor,
+        encoder_outputs: Tensor,
+        self_attn_mask: Optional[Tensor] = None,
+        encoder_outputs_mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor, Tensor]:
         residual = inputs
         inputs = self.self_attention_prenorm(inputs)
@@ -312,7 +341,9 @@ class DecoderLayer(nn.Module):
 
         residual = outputs
         outputs = self.encoder_attention_prenorm(outputs)
-        outputs, encoder_attn = self.encoder_attention(outputs, encoder_outputs, encoder_outputs, encoder_outputs_mask)
+        outputs, encoder_attn = self.encoder_attention(
+            outputs, encoder_outputs, encoder_outputs, encoder_outputs_mask
+        )
         outputs += residual
 
         residual = outputs
@@ -325,20 +356,20 @@ class DecoderLayer(nn.Module):
 
 class Encoder(nn.Module):
     supported_extractors = {
-        'ds2': DeepSpeech2Extractor,
-        'vgg': VGGExtractor,
+        "ds2": DeepSpeech2Extractor,
+        "vgg": VGGExtractor,
     }
 
     def __init__(
-            self,
-            input_dim: int,                         # dimension of feature vector
-            extractor: str = 'vgg',                 # convolutional extractor
-            d_model: int = 512,                     # dimension of model
-            d_ff: int = 2048,                       # dimension of feed forward network
-            num_layers: int = 6,                    # number of encoder layers
-            num_heads: int = 8,                     # number of attention heads
-            dropout_p: float = 0.3,                 # probability of dropout
-            activation: str = 'hardtanh',
+        self,
+        input_dim: int,  # dimension of feature vector
+        extractor: str = "vgg",  # convolutional extractor
+        d_model: int = 512,  # dimension of model
+        d_ff: int = 2048,  # dimension of feed forward network
+        num_layers: int = 6,  # number of encoder layers
+        num_heads: int = 8,  # number of attention heads
+        dropout_p: float = 0.3,  # probability of dropout
+        activation: str = "hardtanh",
     ) -> None:
         super().__init__()
         if extractor is not None:
@@ -353,16 +384,21 @@ class Encoder(nn.Module):
         self.input_norm = nn.LayerNorm(d_model)
         self.input_dropout = nn.Dropout(p=dropout_p)
         self.positional_encoding = PositionalEncoding(d_model)
-        self.layers = nn.ModuleList([
-            EncoderLayer(
-                d_model=d_model,
-                num_heads=num_heads,
-                d_ff=d_ff,
-                dropout_p=dropout_p,
-            ) for _ in range(num_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [
+                EncoderLayer(
+                    d_model=d_model,
+                    num_heads=num_heads,
+                    d_ff=d_ff,
+                    dropout_p=dropout_p,
+                )
+                for _ in range(num_layers)
+            ]
+        )
 
-    def forward(self, inputs: Tensor, input_lengths: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    def forward(
+        self, inputs: Tensor, input_lengths: Tensor
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Forward propagate a `inputs` for  encoder training.
 
@@ -383,7 +419,9 @@ class Encoder(nn.Module):
 
         conv_outputs, output_lengths = self.conv(inputs, input_lengths)
 
-        self_attn_mask = get_attn_pad_mask(conv_outputs, output_lengths, conv_outputs.size(1))
+        self_attn_mask = get_attn_pad_mask(
+            conv_outputs, output_lengths, conv_outputs.size(1)
+        )
 
         outputs = self.input_norm(self.input_proj(conv_outputs))
         outputs += self.positional_encoding(outputs.size(1))
@@ -398,11 +436,11 @@ class Encoder(nn.Module):
         return outputs, output_lengths, encoder_log_probs
 
     def count_parameters(self) -> int:
-        """ Count parameters of encoder """
+        """Count parameters of encoder"""
         return sum([p.numel for p in self.parameters()])
 
     def update_dropout(self, dropout_p: float) -> None:
-        """ Update dropout probability of encoder """
+        """Update dropout probability of encoder"""
         for _, child in self.named_children():
             if isinstance(child, nn.Dropout):
                 child.p = dropout_p
@@ -426,17 +464,17 @@ class Decoder(nn.Module):
     """
 
     def __init__(
-            self,
-            num_classes: int,               # number of classes
-            d_model: int = 512,             # dimension of model
-            d_ff: int = 512,                # dimension of feed forward network
-            num_layers: int = 6,            # number of decoder layers
-            num_heads: int = 8,             # number of attention heads
-            dropout_p: float = 0.3,         # probability of dropout
-            pad_id: int = 0,                # identification of pad token
-            sos_id: int = 1,                # identification of start of sentence token
-            eos_id: int = 2,                # identification of end of sentence token
-            max_length: int = 400,          # max length of decoding
+        self,
+        num_classes: int,  # number of classes
+        d_model: int = 512,  # dimension of model
+        d_ff: int = 512,  # dimension of feed forward network
+        num_layers: int = 6,  # number of decoder layers
+        num_heads: int = 8,  # number of attention heads
+        dropout_p: float = 0.3,  # probability of dropout
+        pad_id: int = 0,  # identification of pad token
+        sos_id: int = 1,  # identification of start of sentence token
+        eos_id: int = 2,  # identification of end of sentence token
+        max_length: int = 400,  # max length of decoding
     ) -> None:
         super(Decoder, self).__init__()
         self.d_model = d_model
@@ -450,48 +488,55 @@ class Decoder(nn.Module):
         self.embedding = Embedding(num_classes, pad_id, d_model)
         self.positional_encoding = PositionalEncoding(d_model)
         self.input_dropout = nn.Dropout(p=dropout_p)
-        self.layers = nn.ModuleList([
-            DecoderLayer(
-                d_model=d_model,
-                num_heads=num_heads,
-                d_ff=d_ff,
-                dropout_p=dropout_p,
-            ) for _ in range(num_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [
+                DecoderLayer(
+                    d_model=d_model,
+                    num_heads=num_heads,
+                    d_ff=d_ff,
+                    dropout_p=dropout_p,
+                )
+                for _ in range(num_layers)
+            ]
+        )
         self.fc = nn.Sequential(
             nn.LayerNorm(d_model),
             Linear(d_model, num_classes, bias=False),
         )
 
     def count_parameters(self) -> int:
-        """ Count parameters of encoder """
+        """Count parameters of encoder"""
         return sum([p.numel for p in self.parameters()])
 
     def update_dropout(self, dropout_p: float) -> None:
-        """ Update dropout probability of encoder """
+        """Update dropout probability of encoder"""
         for _, child in self.named_children():
             if isinstance(child, nn.Dropout):
                 child.p = dropout_p
 
     def forward_step(
-            self,
-            decoder_inputs: Tensor,
-            decoder_input_lengths: Tensor,
-            encoder_outputs: Tensor,
-            encoder_output_lengths: Tensor,
-            positional_encoding_length: Tensor,
+        self,
+        decoder_inputs: Tensor,
+        decoder_input_lengths: Tensor,
+        encoder_outputs: Tensor,
+        encoder_output_lengths: Tensor,
+        positional_encoding_length: Tensor,
     ) -> Tensor:
         dec_self_attn_pad_mask = get_attn_pad_mask(
             decoder_inputs, decoder_input_lengths, decoder_inputs.size(1)
         )
         dec_self_attn_subsequent_mask = get_attn_subsequent_mask(decoder_inputs)
-        self_attn_mask = torch.gt((dec_self_attn_pad_mask + dec_self_attn_subsequent_mask), 0)
+        self_attn_mask = torch.gt(
+            (dec_self_attn_pad_mask + dec_self_attn_subsequent_mask), 0
+        )
 
         encoder_attn_mask = get_attn_pad_mask(
             encoder_outputs, encoder_output_lengths, decoder_inputs.size(1)
         )
 
-        outputs = self.embedding(decoder_inputs) + self.positional_encoding(positional_encoding_length)
+        outputs = self.embedding(decoder_inputs) + self.positional_encoding(
+            positional_encoding_length
+        )
         outputs = self.input_dropout(outputs)
 
         for layer in self.layers:
@@ -505,11 +550,11 @@ class Decoder(nn.Module):
         return outputs
 
     def forward(
-            self,
-            targets: Tensor,
-            encoder_outputs: Tensor,
-            encoder_output_lengths: Tensor,
-            target_lengths: Tensor,
+        self,
+        targets: Tensor,
+        encoder_outputs: Tensor,
+        encoder_output_lengths: Tensor,
+        target_lengths: Tensor,
     ) -> Tensor:
         """
         Forward propagate a `encoder_outputs` for training.
@@ -580,10 +625,10 @@ class SpeechTransformer(nn.Module):
         eos_id: int = 2,
         num_heads: int = 8,
         max_length: int = 400,
-        ) -> None:
+    ) -> None:
         super().__init__()
         assert d_model % num_heads == 0, "d_model % num_heads should be zero."
-        encoder = Encoder(
+        self.encoder = Encoder(
             input_dim=input_dim,
             extractor=extractor,
             d_model=d_model,
@@ -594,7 +639,7 @@ class SpeechTransformer(nn.Module):
             num_classes=num_classes,
         )
 
-        decoder = Decoder(
+        self.decoder = Decoder(
             num_classes=num_classes,
             d_model=d_model,
             d_ff=d_ff,
@@ -620,23 +665,24 @@ class SpeechTransformer(nn.Module):
         targets: Tensor,
         target_lengths: Tensor,
     ) -> Tuple[Tensor, Tensor, Tensor]:
-        encoder_outputs, output_lengths, encoder_log_probs = self.encoder(inputs, input_lengths)
-        predicted_log_probs = self.decoder(targets, encoder_outputs, output_lengths, target_lengths)
+        encoder_outputs, output_lengths, encoder_log_probs = self.encoder(
+            inputs, input_lengths
+        )
+        predicted_log_probs = self.decoder(
+            targets, encoder_outputs, output_lengths, target_lengths
+        )
         return predicted_log_probs, output_lengths, encoder_log_probs
 
-
     def count_parameters(self) -> int:
-        """ Count parameters of encoder """
+        """Count parameters of encoder"""
         num_encoder_parameters = self.encoder.count_parameters()
         num_decoder_parameters = self.decoder.count_parameters()
         return num_encoder_parameters + num_decoder_parameters
-        
 
     def update_dropout(self, dropout_p) -> None:
-        """ Update dropout probability of model """
+        """Update dropout probability of model"""
         self.encoder.update_dropout(dropout_p)
         self.decoder.update_dropout(dropout_p)
-
 
     @torch.no_grad()
     def recognize(self, inputs: Tensor, input_lengths: Tensor) -> Tensor:

@@ -2,8 +2,8 @@ import os
 import os.path as osp
 import re
 import shutil
-from typing import List, Tuple
 import unicodedata
+from typing import List, Tuple
 
 import sentencepiece as spm
 
@@ -130,7 +130,7 @@ def preprocess(
 
                     audio_paths.append(
                         os.path.join(folder, sub_folder, file[:-4] + ".pcm")
-                    )  
+                    )
                     transcripts.append(processed_sentences)
 
                 else:
@@ -145,8 +145,8 @@ def exist_file(path: str) -> bool:
 
 
 def train_sentencepiece(
-    transcripts: List[str], 
-    save_path: str, 
+    transcripts: List[str],
+    save_path: str,
     model_type: str,
     vocab_size: int = 5000,
 ) -> None:
@@ -177,9 +177,7 @@ def train_sentencepiece(
 
 
 def create_transcripts(
-    audio_paths: List[str],
-    transcripts: List[str],
-    save_path:str 
+    audio_paths: List[str], transcripts: List[str], save_path: str
 ) -> None:
     sp = spm.SentencePieceProcessor()
     model_file = osp.join(save_path, "kspon_sentencepiece.model")
@@ -222,7 +220,12 @@ def prepross_kspon(
         train_sentencepiece(transcripts, save_path, "bpe", vocab_size)
 
     elif output_unit == "grapheme":
-        transcripts = [" ".join(unicodedata.normalize("NFKD", transcript).replace(" ", "|")).upper() for transcript in transcripts]
+        transcripts = [
+            " ".join(
+                unicodedata.normalize("NFKD", transcript).replace(" ", "|")
+            ).upper()
+            for transcript in transcripts
+        ]
         train_sentencepiece(transcripts, save_path, "char", vocab_size)
 
     else:
@@ -230,3 +233,9 @@ def prepross_kspon(
 
     logger.info(f"Sentece to {output_unit}")
     create_transcripts(audio_paths, transcripts, save_path)
+
+
+def load_vocab(vocab_path: str) -> spm.SentencePieceProcessor:
+    sp = spm.SentencePieceProcessor()
+    sp.load(vocab_path)
+    return sp

@@ -111,7 +111,7 @@ class SpectrogramDataset(Dataset, SpectrogramParser):
         return len(self.audio_paths)
 
 
-def splt_dataset(config:DictConfig, transcript_path: str, vocab):
+def splt_dataset(config: DictConfig, transcript_path: str, vocab):
     """
     split into training set and validation set.
 
@@ -130,13 +130,12 @@ def splt_dataset(config:DictConfig, transcript_path: str, vocab):
 
     train_num = int(len(audio_paths) * 0.9)
 
-    train_audio_paths = audio_paths[:train_num + 1]
-    train_transcripts = transcripts[:train_num + 1]
+    train_audio_paths = audio_paths[: train_num + 1]
+    train_transcripts = transcripts[: train_num + 1]
 
-    valid_audio_paths = audio_paths[train_num + 1:]
-    valid_transcripts = transcripts[train_num + 1:]
+    valid_audio_paths = audio_paths[train_num + 1 :]
+    valid_transcripts = transcripts[train_num + 1 :]
 
-    
     tmp = list(zip(train_audio_paths, train_transcripts))
     random.shuffle(tmp)
     train_audio_paths, train_transcripts = zip(*tmp)
@@ -144,8 +143,8 @@ def splt_dataset(config:DictConfig, transcript_path: str, vocab):
     train_set = SpectrogramDataset(
         audio_paths=train_audio_paths,
         transcripts=train_transcripts,
-        sos_id=vocab.sos_id, 
-        eos_id=vocab.eos_id,
+        sos_id=vocab.bos_id(),
+        eos_id=vocab.eos_id(),
         config=config,
         spec_augment=config.audio.spec_augment,
         dataset_path=config.train.dataset_path,
@@ -155,8 +154,8 @@ def splt_dataset(config:DictConfig, transcript_path: str, vocab):
     valid_set = SpectrogramDataset(
         audio_paths=valid_audio_paths,
         transcripts=valid_transcripts,
-        sos_id=vocab.sos_id, 
-        eos_id=vocab.eos_id,
+        sos_id=vocab.bos_id(),
+        eos_id=vocab.eos_id(),
         config=config,
         spec_augment=config.audio.spec_augment,
         dataset_path=config.train.dataset_path,

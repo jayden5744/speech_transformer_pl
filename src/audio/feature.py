@@ -57,13 +57,21 @@ class Spectrogram(object):
 
         elif self.feature_extract_by == "torch":  # torch
             spectrogram = torch.stft(
-                Tensor(signal), self.n_fft, hop_length=self.hop_length,
-                win_length=self.n_fft, window=torch.hamming_window(self.n_fft),
-                center=False, normalized=False, onesided=True, return_complex=False
+                Tensor(signal),
+                self.n_fft,
+                hop_length=self.hop_length,
+                win_length=self.n_fft,
+                window=torch.hamming_window(self.n_fft),
+                center=False,
+                normalized=False,
+                onesided=True,
+                return_complex=False,
             )
-            spectrogram = (spectrogram[:, :, 0].pow(2) + spectrogram[:, :, 1].pow(2)).pow(0.5)
+            spectrogram = (
+                spectrogram[:, :, 0].pow(2) + spectrogram[:, :, 1].pow(2)
+            ).pow(0.5)
             spectrogram = np.log1p(spectrogram.numpy())
-        
+
         else:
             raise ValueError(
                 "Unsupported library : {0}".format(self.feature_extract_by)
@@ -124,17 +132,22 @@ class MelSpectrogram(object):
     def __call__(self, signal: np.ndarray) -> np.ndarray:
         if self.feature_extract_by == "torchaudio":
             import torchaudio
+
             mel_spectrogram = self.transform(Tensor(signal))
             mel_spectrogram = torchaudio.functional.amplitude_to_DB(
-                mel_spectrogram, multiplier=10, amin=1e-10,
+                mel_spectrogram,
+                multiplier=10,
+                amin=1e-10,
                 db_multiplier=torch.log10(
                     torch.max(Tensor([torch.max(mel_spectrogram), 1e-10]))
-                    ),
-                top_db=80)
+                ),
+                top_db=80,
+            )
             mel_spectrogram = mel_spectrogram.numpy()
 
         elif self.feature_extract_by == "librosa":
             import librosa
+
             mel_spectrogram = librosa.feature.melspectrogram(
                 y=signal,
                 sr=self.sr,

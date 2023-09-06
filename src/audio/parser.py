@@ -88,13 +88,12 @@ class SpectrogramParser(object):
             audio_path=audio_path,
             del_silence=self.del_silence,
             extension=self.audio_extension,
-        ) # load pcm file 
+        )  # load pcm file
 
         if signal is None:
             logger.info(f"Audio is None : {audio_path}")
 
-        feature = self.transforms(signal) # transform_method 선택한 걸로 변환 
-        
+        feature = self.transforms(signal)  # transform_method 선택한 걸로 변환
 
         if self.normalize:
             feature -= feature.mean()
